@@ -22,10 +22,10 @@ let isDragging = false;
 let dragStart = null;
 let dragStartPoints = null;
 let cutLine = null;
-let tearPath = null;
-let lastDrag = {x: 0, y: 0, time: 0};
 let menuCollapsed = false;
 let lastTime = 0;
+let tearPath = null;
+let lastDrag = {x: 0, y: 0, time: 0};
 
 // creation UI state
 let creationMode = null; // 'rect'|'circle'|'triangle'|'free'
@@ -37,11 +37,37 @@ const groundY = 0;
 const floorHeight = 28;
 const globalDamping = 0.99;
 
+// UI Icons (SVG)
+const ICONS = {
+    cut: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>',
+    grab: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v5"></path><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v11"></path><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"></path><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"></path></svg>',
+    tear: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V12z"></path><path d="M4 12h16"></path><path d="m12 12-4 3 4 3 4-3-4-3z"></path></svg>',
+    pin: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M16 9V4l1 0V2H7v2h1v5c0 2.18-1.79 4-4 4v2h7v7h2v-7h7v-2c-2.21 0-4-1.82-4-4z"/></svg>',
+    delete: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z"/></svg>',
+    create: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
+    reset: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.95 20 14.53 20 13c0-4.42-3.58-8-8-8zm-7.3 1.3L3.24 7.76C4.06 6.69 5.13 5.8 6.32 5.21L7.77 6.63c-.88.43-1.67 1.01-2.32 1.67zM7 13c0-2.76 2.24-5 5-5v2l4-4-4-4v2c-4.42 0-8 3.58-8 8 0 1.53.46 2.95 1.25 4.14l1.42-1.42c-.43-.8-.67-1.7-.67-2.72z"/></svg>',
+};
+
+// 초기 아이콘 설정
+const setupButton = (btn, icon, tooltip) => {
+    if (btn) {
+        btn.innerHTML = icon;
+        btn.setAttribute("data-tooltip", tooltip);
+    }
+};
+
+setupButton(resetButton, ICONS.reset, "전체 초기화");
+setupButton(cutButton, ICONS.cut, "자르기 (직선)");
+setupButton(tearButton, ICONS.tear, "오리기 (자유 곡선)");
+setupButton(grabButton, ICONS.grab, "잡아서 던지기");
+setupButton(pinButton, ICONS.pin, "고정 핀 꽂기");
+setupButton(deleteButton, ICONS.delete, "도형 제거");
+setupButton(createMenuButton, ICONS.create, "새 도형 생성");
+
 console.log("script.js loaded");
 
 function setInteractionMode(mode) {
     interactionMode = mode;
-    selectedBody = null;
     isDragging = false;
 
     const buttons = {
@@ -220,7 +246,20 @@ function polygonSignedArea(points) {
 function spawnNewBody(points, color) {
     if (!points || points.length < 3) return null;
     const pts = points.map((p) => ({x: p.x, y: p.y}));
-    const body = {points: pts, vx: 0, vy: 0, angularVelocity: 0, color: color || randomPaperColor(), rotation: 0, pinned: false, isGrabbed: false};
+    const area = polygonArea(pts);
+    const body = {
+        points: pts,
+        vx: 0,
+        vy: 0,
+        angularVelocity: 0,
+        color: color || randomPaperColor(),
+        rotation: 0,
+        pinned: false,
+        isGrabbed: false,
+        area: area,
+        inertia: getMomentOfInertia({points: pts}),
+        aabb: {minX: 0, minY: 0, maxX: 0, maxY: 0},
+    };
     bodies.push(body);
     return body;
 }
@@ -399,6 +438,12 @@ function polygonCentroid(points) {
     let x = 0;
     let y = 0;
     let area = 0;
+
+    if (!points || points.length < 3) {
+        if (points && points.length > 0) return {x: points[0].x, y: points[0].y};
+        return {x: 0, y: 0};
+    }
+
     for (let i = 0; i < points.length; i++) {
         const j = (i + 1) % points.length;
         const cross = points[i].x * points[j].y - points[j].x * points[i].y;
@@ -440,7 +485,7 @@ function getMomentOfInertia(body) {
 function cutBody(body, line) {
     const [first, second] = clipPolygon(body.points, line);
     if (first.length < 3 || second.length < 3) return null;
-    if (polygonArea(first) < 1000 || polygonArea(second) < 1000) return null;
+    if (polygonArea(first) < 100 || polygonArea(second) < 100) return null;
     const pinnedPoint = body.pinned ? computePinWorld(body) : null;
     const firstPinned = pinnedPoint && isPointInPolygon(pinnedPoint, first);
     const secondPinned = pinnedPoint && isPointInPolygon(pinnedPoint, second);
@@ -532,6 +577,11 @@ function applyCut(line) {
         if (!intersectsPolygon(body.points, line)) continue;
         const pieces = cutBody(body, line);
         if (pieces) {
+            // 물리 데이터 강제 업데이트 (도형 증발 방지)
+            pieces.forEach((p) => {
+                p.area = polygonArea(p.points);
+                p.inertia = getMomentOfInertia(p);
+            });
             bodies.splice(i, 1, pieces[0], pieces[1]);
         }
     }
@@ -579,6 +629,8 @@ function getSATCollision(bodyA, bodyB) {
         }
     }
 
+    if (!collisionNormal) return null;
+
     const centerA = polygonCentroid(bodyA.points);
     const centerB = polygonCentroid(bodyB.points);
     if ((centerB.x - centerA.x) * collisionNormal.x + (centerB.y - centerA.y) * collisionNormal.y < 0) {
@@ -613,8 +665,8 @@ function resolveBodyCollision(bodyA, bodyB, info) {
 
     if (velAlongNormal > 0) return;
 
-    const massA = polygonArea(bodyA.points);
-    const massB = polygonArea(bodyB.points);
+    const massA = bodyA.area;
+    const massB = bodyB.area;
     const inertiaA = getMomentOfInertia(bodyA);
     const inertiaB = getMomentOfInertia(bodyB);
 
@@ -697,6 +749,22 @@ function resolveFloorCollision(body, floorY, deltaTime) {
     let contacts = [];
 
     body.points.forEach((p) => {
+        // 좌측 벽 충돌
+        if (p.x < 0) {
+            translateBody(body, -p.x, 0);
+            body.vx = Math.abs(body.vx) * 0.5;
+        }
+        // 우측 벽 충돌
+        else if (p.x > canvas.width) {
+            translateBody(body, canvas.width - p.x, 0);
+            body.vx = -Math.abs(body.vx) * 0.5;
+        }
+        // 천장 충돌
+        if (p.y < 0) {
+            translateBody(body, 0, -p.y);
+            body.vy = Math.abs(body.vy) * 0.5;
+        }
+
         if (p.y >= floorY - 1.5) {
             // 접점 감지 범위를 살짝 넓혀 선분 접촉 유도
             collisionOccurred = true;
@@ -751,12 +819,24 @@ function resolveFloorCollision(body, floorY, deltaTime) {
 
 function updateBodies(deltaTime) {
     bodies.forEach((body) => {
+        // Broad-phase를 위한 AABB 업데이트는 모든 상태(pinned, grabbed 포함)에서 필요함
+        let minX = Infinity,
+            minY = Infinity,
+            maxX = -Infinity,
+            maxY = -Infinity;
+        for (const p of body.points) {
+            if (p.x < minX) minX = p.x;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.y > maxY) maxY = p.y;
+        }
+        body.aabb = {minX, minY, maxX, maxY};
+
         if (body.pinned || body.isGrabbed) return;
 
-        const area = polygonArea(body.points);
+        const area = body.area;
         const refArea = 114000; // 초기 종이 크기 (300x380)
         const massFactor = Math.sqrt(area / refArea); // 0.1 ~ 1.0 사이의 값
-
         // 질량에 따른 중력 가속도 조정 (무거운 조각이 공기 저항을 뚫고 더 빨리 떨어짐)
         const effectiveGravity = gravity * (0.85 + 0.15 * massFactor);
         body.vy += effectiveGravity * deltaTime;
@@ -784,10 +864,15 @@ function updateBodies(deltaTime) {
     });
 
     for (let i = 0; i < bodies.length; i++) {
+        const bodyA = bodies[i];
         for (let j = i + 1; j < bodies.length; j++) {
-            const collision = getSATCollision(bodies[i], bodies[j]);
+            const bodyB = bodies[j];
+            // Broad Phase: AABB가 겹치지 않으면 정밀 검사 패스
+            if (bodyA.aabb.minX > bodyB.aabb.maxX || bodyA.aabb.maxX < bodyB.aabb.minX || bodyA.aabb.minY > bodyB.aabb.maxY || bodyA.aabb.maxY < bodyB.aabb.minY) continue;
+
+            const collision = getSATCollision(bodyA, bodyB);
             if (collision) {
-                resolveBodyCollision(bodies[i], bodies[j], collision);
+                resolveBodyCollision(bodyA, bodyB, collision);
             }
         }
     }
@@ -917,6 +1002,7 @@ function draw() {
 function animate(timestamp) {
     const deltaTime = Math.min((timestamp - lastTime) / 1000, 0.033);
     lastTime = timestamp;
+
     updateBodies(deltaTime);
     draw();
     requestAnimationFrame(animate);
@@ -1125,12 +1211,18 @@ canvas.addEventListener("mouseup", () => {
                             delete body.pinEdge;
                             delete body.pinT;
                         }
-                        // set original body to outside polygon
-                        body.points = outside;
-                        if (outsidePinned) {
-                            body.pinned = true;
-                            body.pinEdge = outsidePinEdge;
-                            body.pinT = outsidePinT;
+
+                        if (outside && outside.length >= 3 && polygonArea(outside) > 100) {
+                            // 남은 부분이 충분히 크면 유지
+                            body.points = outside;
+                            if (outsidePinned) {
+                                body.pinned = true;
+                                body.pinEdge = outsidePinEdge;
+                                body.pinT = outsidePinT;
+                            }
+                        } else {
+                            // 남은 부분이 너무 작거나 없으면 제거
+                            bodies.splice(i, 1);
                         }
                     }
                 }
@@ -1144,7 +1236,6 @@ canvas.addEventListener("mouseup", () => {
 canvas.addEventListener("mouseleave", () => {
     if (interactionMode === "grab") {
         if (selectedBody) selectedBody.isGrabbed = false;
-        selectedBody = null;
         isDragging = false;
         return;
     }
@@ -1164,6 +1255,17 @@ canvas.addEventListener("mouseleave", () => {
 ].forEach(({el, mode}) => {
     if (el) {
         el.addEventListener("click", () => {
+            // 선택된 도형이 있는 상태에서 제거 버튼을 누르면 즉시 삭제 수행
+            if (mode === "delete" && selectedBody) {
+                const index = bodies.indexOf(selectedBody);
+                if (index !== -1) {
+                    bodies.splice(index, 1);
+                    selectedBody = null;
+                    setInteractionMode("cut"); // 삭제 후 기본 모드(자르기)로 복귀
+                    return;
+                }
+            }
+
             // 삭제 모드에서 다시 누르면 기본 모드(cut)로 토글
             if (mode === "delete" && interactionMode === "delete") {
                 setInteractionMode("cut");
