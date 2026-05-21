@@ -10,9 +10,19 @@
         <div class="toolbar">
             <button id="toggleMenuButton" class="toggle-menu">◀</button>
             <button id="cutButton" class="active">자르기</button>
-            <button id="tearButton">찢기</button>
+            <button id="tearButton">오리기</button>
             <button id="grabButton">잡기</button>
             <button id="pinButton">고정</button>
+            <div class="create-folder">
+                <button id="createMenuButton" class="create-toggle">만들기 ▸</button>
+                <div class="create-menu hidden" id="createMenu">
+                    <button id="createRectButton">⬛ 사각형</button>
+                    <button id="createCircleButton">⚪ 원</button>
+                    <button id="createTriangleButton">🔺 삼각형</button>
+                    <button id="createFreeButton">✏️ 자유형</button>
+                </div>
+            </div>
+            <button id="noOverlapButton">제거</button>
             <button id="resetButton">다시하기</button>
         </div>
         <canvas id="canvas"></canvas>

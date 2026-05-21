@@ -73,6 +73,36 @@ button:hover {
 button:active {
     transform: translateY(0);
 }
+.create-folder {
+    position: relative;
+}
+.create-menu {
+    position: absolute;
+    top: 40px;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(8, 20, 40, 0.95);
+    padding: 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    width: 160px;
+    z-index: 20;
+}
+.create-menu.hidden {
+    display: none;
+}
+.create-menu button {
+    width: 100%;
+    padding: 8px 10px;
+    background: #2b4aac;
+    border-radius: 8px;
+    font-size: 13px;
+}
+.create-toggle {
+    text-align: left;
+}
 .hint {
     font-size: 14px;
     opacity: 0.9;
